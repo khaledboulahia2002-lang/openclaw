@@ -12,8 +12,8 @@ import type {
   DiscordComponentSelectType,
   DiscordModalEntry,
 } from "./components.types.js";
+import { AnySelectMenu } from "./internal/components.message.js";
 import {
-  AnySelectMenu,
   Button,
   ChannelSelectMenu,
   Container,

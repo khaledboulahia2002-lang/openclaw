@@ -97,7 +97,7 @@ function parseExpiry(value: unknown, nowMs: number): number {
 function parseStatus(value: unknown): StandingIntentStatus | undefined {
   return value === undefined
     ? undefined
-    : parseChoice(
+    : parseChoice<StandingIntentStatus>(
         value,
         "status",
         ["pending", "armed", "fired", "done", "cancelled", "expired"],
