@@ -99,7 +99,7 @@ function createHarnessHostCapabilities(
           turnSourceChannel: params.messageChannel ?? params.messageProvider,
           turnSourceTo: params.currentMessagingTarget ?? params.currentChannelId,
           turnSourceAccountId: params.agentAccountId,
-          turnSourceThreadId: params.currentThreadTs,
+          turnSourceThreadId: params.messageThreadId,
         }),
       }),
   });

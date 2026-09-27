@@ -140,6 +140,7 @@ function createParams(): EmbeddedRunAttemptParams {
     currentChannelId: "chat-1",
     agentAccountId: "default",
     currentThreadTs: "thread-ts",
+    messageThreadId: "thread-ts",
     onAgentEvent: vi.fn(),
   } as unknown as EmbeddedRunAttemptParams;
   const hostCapabilities: AgentHarnessHostCapabilities = {
@@ -169,7 +170,7 @@ function createParams(): EmbeddedRunAttemptParams {
           turnSourceChannel: params.messageChannel,
           turnSourceTo: params.currentChannelId,
           turnSourceAccountId: params.agentAccountId,
-          turnSourceThreadId: params.currentThreadTs,
+          turnSourceThreadId: params.messageThreadId,
         },
       });
     },

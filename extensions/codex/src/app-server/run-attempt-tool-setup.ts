@@ -522,8 +522,8 @@ export async function prepareCodexAttemptTools(runtime: CodexAttemptRuntime) {
       ...(turnSourceChannel ? { turnSourceChannel } : {}),
       ...(turnSourceTo ? { turnSourceTo } : {}),
       ...(params.agentAccountId ? { turnSourceAccountId: params.agentAccountId } : {}),
-      ...(params.currentThreadTs !== undefined
-        ? { turnSourceThreadId: params.currentThreadTs }
+      ...(params.messageThreadId !== undefined
+        ? { turnSourceThreadId: params.messageThreadId }
         : {}),
     };
     const toolBridge = createCodexDynamicToolBridge({

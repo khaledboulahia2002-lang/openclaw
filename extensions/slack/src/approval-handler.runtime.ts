@@ -26,6 +26,7 @@ import {
 import { getSlackListenerWriteClient } from "./client.js";
 import { normalizeSlackApproverId } from "./exec-approvals.js";
 import { SLACK_EDIT_TEXT_MAX_BYTES } from "./limits.js";
+import { escapeSlackMrkdwn } from "./monitor/mrkdwn.js";
 import { resolveSlackReplyBlocks } from "./reply-blocks.js";
 import { sendMessageSlack } from "./send.js";
 import { setSlackSessionStatus } from "./session-status.js";
@@ -63,6 +64,7 @@ type SlackApprovalHandlerContext = {
   app: App;
   config: SlackExecApprovalConfig;
   resolveClient?: (teamId?: string) => WebClient | undefined;
+  workspaceTeamId?: string;
   enterprise?: {
     enterpriseId: string;
   };
@@ -142,7 +144,25 @@ function buildSlackMetadataContextBlocks(metadata: readonly SlackMetadataItem[])
 }
 
 function buildSlackPluginMetadata(view: SlackPluginApprovalView): SlackMetadataItem[] {
-  return [{ label: "Approval ID", value: view.approvalId }, ...view.metadata];
+  const source = view.approvalSource;
+  const senderId = normalizeOptionalString(source?.senderId);
+  const senderName = normalizeOptionalString(source?.senderName);
+  const requester = senderId
+    ? senderName && senderName !== senderId
+      ? `${senderName} (${senderId})`
+      : senderId
+    : undefined;
+  const channel = source?.channel === "slack" ? "Slack" : source?.channel;
+  const kind = source?.conversationKind === "direct" ? "DM" : source?.conversationKind;
+  const sourceLabel = channel
+    ? `${channel}${kind ? ` ${kind}` : ""}${source?.workspaceId ? ` in ${source.workspaceId}` : ""}`
+    : undefined;
+  return [
+    { label: "Approval ID", value: view.approvalId },
+    ...(requester ? [{ label: "Requested by", value: escapeSlackMrkdwn(requester) }] : []),
+    ...(sourceLabel ? [{ label: "Source", value: escapeSlackMrkdwn(sourceLabel) }] : []),
+    ...view.metadata,
+  ];
 }
 
 function resolveSlackPluginDescription(view: SlackPluginApprovalView): string {
@@ -182,6 +202,9 @@ function buildSlackApprovalPayload(input: SlackApprovalRenderInput): SlackPendin
   const metadata = isPlugin ? buildSlackPluginMetadata(view) : view.metadata;
   const bodyLabel = isPlugin ? "*Request*" : isSystemAgent ? "*Change*" : "*Command*";
   const bodyText = isPlugin ? view.title : buildSlackCodeBlock(view.commandText);
+  const userMessageExcerpt = isPlugin
+    ? normalizeOptionalString(view.approvalSource?.userMessageExcerpt)
+    : undefined;
   const includeMetadata = isPlugin || phase === "pending";
   const text = [
     heading,
@@ -189,6 +212,13 @@ function buildSlackApprovalPayload(input: SlackApprovalRenderInput): SlackPendin
     "",
     bodyLabel,
     bodyText,
+    ...(userMessageExcerpt
+      ? [
+          "",
+          "*Original message (excerpt)*",
+          buildSlackCodeBlock(truncateSlackMrkdwn(escapeSlackMrkdwn(userMessageExcerpt), 2600)),
+        ]
+      : []),
     ...(includeMetadata ? buildSlackMetadataLines(metadata) : []),
   ].join("\n");
 
@@ -214,6 +244,18 @@ function buildSlackApprovalPayload(input: SlackApprovalRenderInput): SlackPendin
         }`,
       },
     },
+    ...(userMessageExcerpt
+      ? [
+          {
+            type: "section",
+            text: {
+              type: "plain_text",
+              text: `Original message (excerpt)\n${truncateSlackMrkdwn(userMessageExcerpt, 2600)}`,
+              emoji: false,
+            },
+          } satisfies SlackBlock,
+        ]
+      : []),
     ...(includeMetadata ? buildSlackMetadataContextBlocks(metadata) : []),
   ];
   if (phase === "pending") {
@@ -318,17 +360,18 @@ export const slackApprovalNativeRuntime = createChannelApprovalNativeRuntimeAdap
       }
       const client = resolveApprovalClient(resolved.context, preparedTarget.teamId);
       const to = await resolveApprovalChannel(client, preparedTarget.to, preparedTarget.teamId);
-      const eventScope = preparedTarget.teamId
-        ? {
-            teamId: preparedTarget.teamId,
-            client,
-            writeClient: getSlackListenerWriteClient({
-              listenerClient: client,
+      const eventScope =
+        preparedTarget.teamId && resolved.context.enterprise
+          ? {
               teamId: preparedTarget.teamId,
-              clientOptions: resolved.context.app.webClientOptions,
-            }),
-          }
-        : undefined;
+              client,
+              writeClient: getSlackListenerWriteClient({
+                listenerClient: client,
+                teamId: preparedTarget.teamId,
+                clientOptions: resolved.context.app.webClientOptions,
+              }),
+            }
+          : undefined;
       const message = await sendMessageSlack(to, pendingPayload.text, {
         cfg,
         accountId: resolved.accountId,
@@ -383,7 +426,16 @@ function resolveApprovalClient(context: SlackApprovalHandlerContext, teamId?: st
   if (!teamId) {
     return context.app.client;
   }
-  if (!context.enterprise || !context.resolveClient) {
+  if (!context.enterprise) {
+    if (
+      !context.workspaceTeamId ||
+      context.workspaceTeamId.toUpperCase() !== teamId.toUpperCase()
+    ) {
+      throw new Error("Slack approval workspace does not match the authenticated installation");
+    }
+    return context.app.client;
+  }
+  if (!context.resolveClient) {
     throw new Error("Slack Enterprise Grid approval client is unavailable");
   }
   const client = context.resolveClient(teamId);
@@ -407,7 +459,7 @@ async function resolveApprovalChannel(client: WebClient, target: string, teamId?
   const opened = await client.conversations.open({ users: parsed.id, return_im: true });
   const channelId = normalizeOptionalString(opened.channel?.id);
   if (!channelId) {
-    throw new Error("Slack Enterprise Grid approval DM did not return a channel id");
+    throw new Error("Slack approval DM did not return a channel id");
   }
   return `channel:${channelId}`;
 }

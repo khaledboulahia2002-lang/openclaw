@@ -32,6 +32,7 @@ export {
   type ExecApprovalSessionTarget,
 } from "../infra/exec-approval-session-target.js";
 export { doesApprovalRequestMatchChannelAccount } from "../infra/approval-request-account-binding.js";
+export { resolvePluginApprovalSlackApprovers } from "../infra/plugin-approval-policy.js";
 export {
   buildPluginApprovalExpiredMessage,
   buildPluginApprovalRequestMessage,

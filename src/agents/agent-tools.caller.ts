@@ -30,7 +30,7 @@ export function createCodingToolsGatewayCaller(params: {
           turnSourceTo:
             options.currentMessagingTarget ?? options.currentChannelId ?? options.messageTo,
           turnSourceAccountId: params.accountId,
-          turnSourceThreadId: options.currentThreadTs ?? options.messageThreadId,
+          turnSourceThreadId: options.messageThreadId,
         }
       : undefined;
   return (tool: Parameters<typeof wrapToolWithGatewayCallerIdentity>[0]) =>

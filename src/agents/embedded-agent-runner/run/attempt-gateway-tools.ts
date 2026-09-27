@@ -19,10 +19,12 @@ export async function withPreparedEmbeddedGatewayTools<T>(
     | "currentChannelId"
     | "agentAccountId"
     | "currentThreadTs"
+    | "messageThreadId"
     | "sessionId"
     | "disableTools"
     | "sessionPersistence"
     | "githubPublicationAvailable"
+    | "approvalSource"
   > & { agentId: string; sessionKey: string; agentHarnessId: string },
   isAttemptCurrent: () => boolean,
   run: () => Promise<T>,
@@ -41,7 +43,8 @@ export async function withPreparedEmbeddedGatewayTools<T>(
         : undefined,
     turnSourceTo: attempt.currentMessagingTarget ?? attempt.currentChannelId,
     turnSourceAccountId: attempt.agentAccountId,
-    turnSourceThreadId: attempt.currentThreadTs,
+    turnSourceThreadId: attempt.messageThreadId,
+    approvalSource: attempt.approvalSource,
   });
   return withGatewayToolCallerIdentity(callerIdentity, async () => {
     const resolveGatewayContext = getGatewayContextResolver(attempt.admittedRunContext);

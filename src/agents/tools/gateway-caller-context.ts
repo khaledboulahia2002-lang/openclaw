@@ -13,6 +13,7 @@ import {
   validateAgentRunDelegatedAuthority,
   type AgentRunDelegatedAuthority,
 } from "../../infra/agent-run-registry.js";
+import type { PluginApprovalSource } from "../../infra/plugin-approvals.js";
 import { getGatewayContextResolver } from "../../plugins/runtime/gateway-request-scope.js";
 import {
   getAdmittedRunDelegatedAuthority,
@@ -77,6 +78,8 @@ type GatewayToolCallerIdentity = {
   turnSourceTo?: string;
   turnSourceAccountId?: string;
   turnSourceThreadId?: string | number;
+  /** Host-captured approval presentation; never plugin-authored request data. */
+  approvalSource?: PluginApprovalSource;
 };
 
 type GatewayToolCallerSource = {
@@ -87,7 +90,6 @@ type GatewayToolCallerSource = {
   currentChannelId?: string;
   agentTo?: string;
   agentAccountId?: string;
-  currentThreadTs?: string;
   agentThreadId?: string | number;
 };
 
@@ -132,6 +134,7 @@ type AdmittedGatewayToolCallerParams = {
   turnSourceTo?: string;
   turnSourceAccountId?: string;
   turnSourceThreadId?: string | number;
+  approvalSource?: PluginApprovalSource;
 };
 
 function composeReceiptAuthority(
@@ -194,6 +197,7 @@ export function createAdmittedGatewayToolCallerIdentity(
     turnSourceTo: params.turnSourceTo,
     turnSourceAccountId: params.turnSourceAccountId,
     turnSourceThreadId: params.turnSourceThreadId,
+    approvalSource: params.approvalSource,
   };
 }
 
@@ -324,7 +328,12 @@ export async function withGatewayToolCallerIdentity<T>(
   const turnSourceTo = inheritedOwner?.turnSourceTo ?? identity.turnSourceTo?.trim();
   const turnSourceAccountId =
     inheritedOwner?.turnSourceAccountId ?? identity.turnSourceAccountId?.trim();
-  const turnSourceThreadId = inheritedOwner?.turnSourceThreadId ?? identity.turnSourceThreadId;
+  // An admitted root can be unthreaded; nested tool wrappers cannot turn a
+  // reply anchor into an approval origin thread.
+  const turnSourceThreadId = inheritedOwner?.operationalRunInstance
+    ? inheritedOwner.turnSourceThreadId
+    : (inheritedOwner?.turnSourceThreadId ?? identity.turnSourceThreadId);
+  const approvalSource = inheritedOwner?.approvalSource ?? identity.approvalSource;
   const gatewayUiCommandTarget =
     inheritedOwner?.gatewayUiCommandTarget ?? identity.gatewayUiCommandTarget;
   return await gatewayToolCallerStorage.run(
@@ -363,6 +372,7 @@ export async function withGatewayToolCallerIdentity<T>(
       ...(turnSourceTo ? { turnSourceTo } : {}),
       ...(turnSourceAccountId ? { turnSourceAccountId } : {}),
       ...(turnSourceThreadId !== undefined ? { turnSourceThreadId } : {}),
+      ...(approvalSource ? { approvalSource } : {}),
     },
     run,
   );
@@ -423,7 +433,7 @@ export function createGatewayToolCallerWrapper(
           turnSourceChannel: source.agentChannel,
           turnSourceTo: source.currentMessagingTarget ?? source.currentChannelId ?? source.agentTo,
           turnSourceAccountId: source.agentAccountId,
-          turnSourceThreadId: source.currentThreadTs ?? source.agentThreadId,
+          turnSourceThreadId: source.agentThreadId,
         }
       : undefined;
   return (tool) => wrapToolWithGatewayCallerIdentity(tool, identity);

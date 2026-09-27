@@ -179,6 +179,11 @@ describe("plugin approval signed agent runtime", () => {
           pluginId: "forged-plugin",
           title: "Sensitive action",
           description: "D",
+          policySubject: {
+            pluginKey: "calendar",
+            appId: "connector_calendar",
+            tool: "create_event.raw",
+          },
           agentId: "forged-agent",
           sessionKey: "forged-session",
           turnSourceChannel: "forged-channel",
@@ -198,10 +203,17 @@ describe("plugin approval signed agent runtime", () => {
           approvalOwnerPluginId: "codex",
           agentId: "main",
           sessionKey: "agent:main:session-1",
-          turnSourceChannel: "telegram",
-          turnSourceTo: "chat-1",
+          turnSourceChannel: "slack",
+          turnSourceTo: "D1",
           turnSourceAccountId: "default",
           turnSourceThreadId: "thread-1",
+          approvalSource: {
+            channel: "slack",
+            senderId: "U123",
+            senderName: "Lightning McQueen",
+            conversationKind: "direct",
+            userMessageExcerpt: "trusted original text",
+          },
         },
       });
 
@@ -217,13 +229,28 @@ describe("plugin approval signed agent runtime", () => {
       const approvalId = String(broadcastPayload?.id);
       expect((await manager.getSnapshot(approvalId))?.request).toMatchObject({
         pluginId: "codex",
+        policySubject: {
+          pluginKey: "calendar",
+          appId: "connector_calendar",
+          tool: "create_event.raw",
+        },
         agentId: "main",
         sessionKey: "agent:main:session-1",
-        turnSourceChannel: "telegram",
-        turnSourceTo: "chat-1",
+        turnSourceChannel: "slack",
+        turnSourceTo: "D1",
         turnSourceAccountId: "default",
         turnSourceThreadId: "thread-1",
+        approvalSource: {
+          channel: "slack",
+          senderId: "U123",
+          senderName: "Lightning McQueen",
+          userMessageExcerpt: "trusted original text",
+        },
       });
+      const durablePresentation = openOpenClawStateDatabase(options)
+        .db.prepare("SELECT presentation_json FROM operator_approvals WHERE approval_id = ?")
+        .get(approvalId) as { presentation_json?: string } | undefined;
+      expect(durablePresentation?.presentation_json).not.toContain("trusted original text");
       expect(
         openOpenClawStateDatabase(options)
           .db.prepare(
@@ -237,6 +264,30 @@ describe("plugin approval signed agent runtime", () => {
       });
       await manager.resolve(approvalId, "deny");
       await pending;
+    });
+  });
+
+  it("rejects a plugin reviewer policy subject from an unsigned client", async (testContext) => {
+    const fixture = createTestApprovalFixture<PluginApprovalRequestPayload>(testContext, {
+      approvalKind: "plugin",
+    });
+    await fixture.run(async () => {
+      const opts = requestOptions({
+        request: {
+          title: "Sensitive action",
+          description: "D",
+          policySubject: { pluginKey: "calendar" },
+        },
+        identity: identityWithoutExecution(),
+      });
+      (opts.client as { internal?: unknown }).internal = undefined;
+
+      await requestHandler(fixture.manager)(opts);
+
+      expect(await fixture.manager.listPendingRecords()).toHaveLength(0);
+      expect(vi.mocked(opts.respond).mock.calls[0]?.[2]).toMatchObject({
+        message: expect.stringContaining("requires agent runtime authority"),
+      });
     });
   });
 

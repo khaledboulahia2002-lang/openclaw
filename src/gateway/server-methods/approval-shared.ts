@@ -11,7 +11,10 @@ import type {
   ExecApprovalDecision,
   ExecApprovalRequestPayload,
 } from "../../infra/exec-approvals.js";
-import type { PluginApprovalRequestPayload } from "../../infra/plugin-approvals.js";
+import type {
+  PluginApprovalRequest,
+  PluginApprovalRequestPayload,
+} from "../../infra/plugin-approvals.js";
 import { createDeferredCore } from "../../shared/deferred.js";
 import { prepareApprovalChannelCustody } from "../approval-channel-custody.js";
 import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
@@ -395,6 +398,9 @@ export async function handlePendingApprovalRequest<
         turnSourceChannel: params.record.request.turnSourceChannel,
         turnSourceAccountId: params.record.request.turnSourceAccountId,
         approvalKind: params.approvalKind ?? "exec",
+        ...(params.approvalKind === "plugin"
+          ? { request: params.requestEvent as PluginApprovalRequest & typeof params.requestEvent }
+          : {}),
       });
     const deliveryRoute: ApprovalRequestDeliveryRoute = delivered
       ? "forwarder"

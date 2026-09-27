@@ -1338,6 +1338,7 @@ describe("createOpenClawCodingTools", () => {
           ownerOrigin: { kind: "external", channel: "discord" },
         },
         messageThreadId: "42",
+        currentThreadTs: "43",
         includeCoreTools: false,
         runtimeToolAllowlist: ["file_fetch"],
         inheritRuntimeToolAllowlist: true,

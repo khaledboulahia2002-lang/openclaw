@@ -534,8 +534,8 @@ export async function runCodexAppServerSideQuestion(
           turnId,
           autoApproveMcpTools,
           projectedMcpServers,
-          getActiveMcpToolCall: (serverName) =>
-            nativeToolLifecycleProjector?.getActiveMcpToolCall(serverName),
+          getActiveMcpToolCall: (serverName, connectorId) =>
+            nativeToolLifecycleProjector?.getActiveMcpToolCall(serverName, connectorId),
           pluginAppPolicyContext,
           signal,
         });

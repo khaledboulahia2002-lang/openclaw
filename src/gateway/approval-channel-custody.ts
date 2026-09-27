@@ -10,6 +10,7 @@ import {
   type ApprovalRequestLike,
 } from "../infra/approval-request-account-binding.js";
 import type { ChannelApprovalKind } from "../infra/approval-types.js";
+import type { PluginApprovalRequest } from "../infra/plugin-approvals.js";
 
 type PreparedApprovalChannelCustody = {
   resolverId: string;
@@ -43,31 +44,41 @@ export function prepareApprovalChannelCustody(params: {
   if (!plugin) {
     return null;
   }
-  const isActorAuthorized = (candidateAccountId: string) =>
+  const isActorAuthorized = (candidateAccountId: string, request?: ApprovalRequestLike) =>
     authorizeActorAction({
       cfg: params.cfg,
       accountId: candidateAccountId,
       senderId,
       action: "approve",
       approvalKind: params.approvalKind,
+      ...(params.approvalKind === "plugin" && request
+        ? { request: request as PluginApprovalRequest }
+        : {}),
     }).authorized;
-  if (!isActorAuthorized(accountId)) {
+  if (params.approvalKind !== "plugin" && !isActorAuthorized(accountId)) {
     return null;
   }
-  const eligibleAccountIds = plugin.config.listAccountIds(params.cfg).filter(isActorAuthorized);
-  if (!eligibleAccountIds.includes(accountId)) {
+  const accountIds = plugin.config.listAccountIds(params.cfg);
+  if (!accountIds.includes(accountId)) {
     return null;
   }
   return {
     resolverId: `${channel}:${accountId}`,
-    authorizes: (request) =>
-      doesApprovalRequestSelectChannelAccount({
-        cfg: params.cfg,
-        request,
-        channel,
-        accountId,
-        defaultAccountId: plugin.config.defaultAccountId?.(params.cfg) ?? "",
-        eligibleAccountIds,
-      }),
+    authorizes: (request) => {
+      const eligibleAccountIds = accountIds.filter((candidateAccountId) =>
+        isActorAuthorized(candidateAccountId, request),
+      );
+      return (
+        eligibleAccountIds.includes(accountId) &&
+        doesApprovalRequestSelectChannelAccount({
+          cfg: params.cfg,
+          request,
+          channel,
+          accountId,
+          defaultAccountId: plugin.config.defaultAccountId?.(params.cfg) ?? "",
+          eligibleAccountIds,
+        })
+      );
+    },
   };
 }

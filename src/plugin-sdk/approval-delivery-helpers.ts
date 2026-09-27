@@ -63,7 +63,9 @@ type ApproverRestrictedNativeApprovalFlatParams = {
   /** Whether a sender can approve exec approvals for this account. */
   isExecAuthorizedSender: (params: ApprovalAdapterParams) => boolean;
   /** Optional plugin approval authorization hook; defaults to exec authorization. */
-  isPluginAuthorizedSender?: (params: ApprovalAdapterParams) => boolean;
+  isPluginAuthorizedSender?: (
+    params: ApprovalAdapterParams & { request?: PluginApprovalRequest },
+  ) => boolean;
   /** Whether native approval delivery is enabled for an account. */
   isNativeDeliveryEnabled: (params: { cfg: OpenClawConfig; accountId?: string | null }) => boolean;
   /** Native delivery target preference for an account. */
@@ -298,16 +300,23 @@ export function createApproverRestrictedNativeApprovalCapability(
       accountId,
       senderId,
       approvalKind,
+      request,
     }: {
       cfg: OpenClawConfig;
       accountId?: string | null;
       senderId?: string | null;
       action: "approve";
       approvalKind: ChannelApprovalKind;
+      request?: NativeApprovalRequest;
     }) => {
       const authorized =
         approvalKind === "plugin"
-          ? pluginSenderAuth({ cfg, accountId, senderId })
+          ? pluginSenderAuth({
+              cfg,
+              accountId,
+              senderId,
+              request: request as PluginApprovalRequest,
+            })
           : params.isExecAuthorizedSender({ cfg, accountId, senderId });
       return authorized
         ? { authorized: true }

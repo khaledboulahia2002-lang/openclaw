@@ -32,6 +32,23 @@ import {
 } from "./gateway-caller-context.js";
 
 describe("gateway caller context wrapper", () => {
+  it("keeps an admitted root turn unthreaded through nested tool wrappers", async () => {
+    const identity = { agentId: "main", sessionKey: "agent:main:slack:direct:u123" };
+    await withGatewayToolCallerIdentity(
+      {
+        ...identity,
+        operationalRunInstance: { instanceId: "slack-root", runId: "slack-root" },
+      },
+      () =>
+        withGatewayToolCallerIdentity(
+          { ...identity, turnSourceThreadId: "1700000001.000002" },
+          () => {
+            expect(getGatewayToolCallerIdentity()?.turnSourceThreadId).toBeUndefined();
+          },
+        ),
+    );
+  });
+
   it.each(["outer", "inner"])("retains the narrower %s approval lifetime", async (narrower) => {
     const run = { instanceId: `context-${narrower}`, runId: `context-${narrower}` };
     const root = claimAgentRunDelegatedAuthority(run);

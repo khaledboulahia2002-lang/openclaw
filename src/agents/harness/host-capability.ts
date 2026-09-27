@@ -227,7 +227,8 @@ export function createAgentHarnessHostCapabilities(params: {
     turnSourceChannel: attempt.messageChannel ?? attempt.messageProvider,
     turnSourceTo: attempt.currentMessagingTarget ?? attempt.currentChannelId,
     turnSourceAccountId: attempt.agentAccountId,
-    turnSourceThreadId: attempt.currentThreadTs,
+    turnSourceThreadId: attempt.messageThreadId,
+    approvalSource: attempt.approvalSource,
   });
   const inactiveError = (message: string) => {
     // Gateway closure can precede the run's abort marker. Keep its captured
@@ -379,7 +380,7 @@ export function createAgentHarnessHostCapabilities(params: {
     turnSourceChannel: attempt.messageChannel ?? attempt.messageProvider,
     turnSourceTo: attempt.currentMessagingTarget ?? attempt.currentChannelId,
     turnSourceAccountId: attempt.agentAccountId,
-    turnSourceThreadId: attempt.currentThreadTs,
+    turnSourceThreadId: attempt.messageThreadId,
   });
   const withCaller = async <T>(run: () => Promise<T>, signal?: AbortSignal): Promise<T> =>
     await withGatewayToolCallerIdentity(
@@ -609,6 +610,7 @@ export function createAgentHarnessHostCapabilities(params: {
                     severity: request.severity,
                     toolName: request.toolName,
                     toolCallId: request.toolCallId,
+                    ...(request.policySubject ? { policySubject: request.policySubject } : {}),
                     ...(request.mcpTool ? { mcpTool: request.mcpTool } : {}),
                     timeoutMs: request.timeoutMs,
                     twoPhase: true,

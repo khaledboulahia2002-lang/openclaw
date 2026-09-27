@@ -733,7 +733,9 @@ export function createOpenClawCodingToolsInternal(
     ...(turnSourceChannel ? { turnSourceChannel } : {}),
     ...(turnSourceTo ? { turnSourceTo } : {}),
     ...(options?.agentAccountId ? { turnSourceAccountId: options.agentAccountId } : {}),
-    ...(options?.currentThreadTs ? { turnSourceThreadId: options.currentThreadTs } : {}),
+    ...(options?.messageThreadId !== undefined
+      ? { turnSourceThreadId: options.messageThreadId }
+      : {}),
     ...(options?.trace ? { trace: options.trace } : {}),
     loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
     onToolOutcome: options?.onToolOutcome,

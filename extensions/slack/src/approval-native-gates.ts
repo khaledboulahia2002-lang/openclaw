@@ -14,6 +14,7 @@ import type {
   PluginApprovalRequest,
   SystemAgentApprovalRequest,
 } from "openclaw/plugin-sdk/approval-runtime";
+import { resolvePluginApprovalSlackApprovers } from "openclaw/plugin-sdk/approval-runtime";
 import type { ChannelApprovalCapability } from "openclaw/plugin-sdk/channel-contract";
 import {
   channelRouteTargetsMatchExact,
@@ -31,12 +32,19 @@ import {
   resolveDefaultSlackAccountId,
   resolveSlackAccount,
 } from "./accounts.js";
-import { getSlackApprovalApprovers, getSlackApprovalApproversForTeam } from "./approval-auth.js";
+import {
+  getSlackApprovalApproversForTeam,
+  getSlackApprovalApprovers,
+  hasConfiguredSlackPluginApprovalApprovers,
+} from "./approval-auth.js";
 import {
   getSlackExecApprovalApprovers,
   isSlackExecApprovalClientEnabled,
 } from "./exec-approvals.js";
-import { getSlackInstallationKind } from "./installation-identity-state.js";
+import {
+  getSlackInstallationKind,
+  getSlackInstallationTeamId,
+} from "./installation-identity-state.js";
 import {
   canonicalizeSlackApiTargetId,
   formatSlackTarget,
@@ -252,10 +260,13 @@ function isSlackPluginNativeApprovalClientConfigEnabled(params: {
   accountId?: string | null;
 }): boolean {
   const slackNativeConfig = resolveSlackNativeApprovalConfig(params);
-  return isChannelExecApprovalClientEnabledFromConfig({
-    enabled: slackNativeConfig?.enabled,
-    approverCount: getSlackApprovalApprovers(params).length,
-  });
+  return (
+    hasConfiguredSlackPluginApprovalApprovers(params) ||
+    isChannelExecApprovalClientEnabledFromConfig({
+      enabled: slackNativeConfig?.enabled,
+      approverCount: getSlackApprovalApprovers(params).length,
+    })
+  );
 }
 
 function shouldHandleSlackViaNativeClientConfig(params: {
@@ -288,17 +299,26 @@ function isSlackNativeApprovalAccountEligible(params: {
     params.approvalKind === "exec"
       ? getSlackExecApprovalApprovers(params).length
       : getSlackApprovalApproversForTeam({
-          ...params,
-          teamId: resolveEnterpriseApprovalTeamId(params.request),
+          cfg: params.cfg,
+          accountId: params.accountId,
+          teamId: resolveSlackApprovalTeamId(params),
+          ...(params.approvalKind === "plugin"
+            ? { request: params.request as PluginApprovalRequest }
+            : {}),
         }).length;
+  const selectedPolicy =
+    params.approvalKind === "plugin"
+      ? resolvePluginApprovalSlackApprovers(params.cfg, params.request as PluginApprovalRequest)
+      : undefined;
   return (
     isSlackApprovalTransportEnabled(params) &&
-    isChannelExecApprovalClientEnabledFromConfig({ enabled: config?.enabled, approverCount }) &&
-    matchesApprovalRequestFilters({
-      request: params.request.request,
-      agentFilter: config?.agentFilter,
-      sessionFilter: config?.sessionFilter,
-    })
+    ((selectedPolicy !== undefined && approverCount > 0) ||
+      (isChannelExecApprovalClientEnabledFromConfig({ enabled: config?.enabled, approverCount }) &&
+        matchesApprovalRequestFilters({
+          request: params.request.request,
+          agentFilter: config?.agentFilter,
+          sessionFilter: config?.sessionFilter,
+        })))
   );
 }
 
@@ -341,14 +361,27 @@ export function shouldHandleSlackNativeApprovalRequest(params: {
   request: SlackNativeApprovalRequest;
 }): boolean {
   const account = resolveSlackAccount(params);
+  const originTeamId = resolveSlackOriginTeamId(params.request);
+  const installedTeamId = getSlackInstallationTeamId(account.accountId);
   if (
-    getSlackInstallationKind(account.accountId) === "enterprise" &&
-    !resolveEnterpriseApprovalTeamId(params.request)
+    installedTeamId &&
+    originTeamId &&
+    installedTeamId.toLowerCase() !== originTeamId.toLowerCase()
   ) {
+    return false;
+  }
+  if (getSlackInstallationKind(account.accountId) === "enterprise" && !originTeamId) {
     return false;
   }
   const approvalKind = resolveApprovalKind(params.request, params.approvalKind);
   if (approvalKind === "plugin") {
+    const configured = resolvePluginApprovalSlackApprovers(
+      params.cfg,
+      params.request as PluginApprovalRequest,
+    );
+    if (configured !== undefined && configured.length === 0) {
+      return false;
+    }
     return (
       shouldHandleSlackViaNativeClientConfig({ ...params, approvalKind }) ||
       shouldHandleSlackPluginViaForwardingSession(params) ||
@@ -364,13 +397,22 @@ export function shouldHandleSlackNativeApprovalRequest(params: {
   return shouldHandleSlackViaNativeClientConfig({ ...params, approvalKind: "exec" });
 }
 
-export function resolveEnterpriseApprovalTeamId(
-  request: SlackNativeApprovalRequest,
-): string | undefined {
+function resolveSlackOriginTeamId(request: SlackNativeApprovalRequest): string | undefined {
   try {
     const target = resolveTurnSourceSlackOriginTarget(request);
     return target ? parseSlackTarget(target.to)?.teamId : undefined;
   } catch {
     return undefined;
   }
+}
+
+export function resolveSlackApprovalTeamId(params: {
+  cfg: OpenClawConfig;
+  accountId?: string | null;
+  request: SlackNativeApprovalRequest;
+}): string | undefined {
+  return (
+    getSlackInstallationTeamId(resolveSlackAccount(params).accountId) ??
+    resolveSlackOriginTeamId(params.request)
+  );
 }

@@ -577,7 +577,7 @@ export function prepareCodexAttemptResources(prompt: CodexAttemptPrompt) {
         turnSourceChannel: requesterChannel,
         turnSourceTo: params.currentMessagingTarget ?? params.currentChannelId,
         turnSourceAccountId: params.agentAccountId,
-        turnSourceThreadId: params.currentThreadTs,
+        turnSourceThreadId: params.messageThreadId,
       },
       attemptTimeoutMs: params.timeoutMs,
       startupTimeoutMs,
