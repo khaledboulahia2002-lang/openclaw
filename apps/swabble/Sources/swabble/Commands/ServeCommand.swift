@@ -42,26 +42,36 @@ struct ServeCommand: ParsableCommand {
             let stream = try await pipeline.start(
                 localeIdentifier: cfg.speech.localeIdentifier,
                 etiquette: cfg.speech.etiquetteReplacements)
-            for await seg in stream {
-                if cfg.wake.enabled {
-                    guard Self.matchesWake(text: seg.text, cfg: cfg) else { continue }
-                }
-                let stripped = Self.stripWake(text: seg.text, cfg: cfg)
-                let job = HookJob(text: stripped, timestamp: Date())
-                let executor = HookExecutor(config: cfg)
-                try await executor.run(job: job)
-                if cfg.transcripts.enabled {
-                    await TranscriptsStore.shared.append(text: stripped)
-                }
-                if seg.isFinal {
-                    logger.info("final: \(stripped)")
-                } else {
-                    logger.debug("partial: \(stripped)")
-                }
-            }
+            try await Self.consumeTranscripts(stream, config: cfg, logger: logger)
         } catch {
             logger.error("serve error: \(error)")
             throw error
+        }
+    }
+
+    static func consumeTranscripts(
+        _ stream: AsyncStream<SpeechSegment>,
+        config cfg: SwabbleConfig,
+        logger: Logger) async throws
+    {
+        let executor = HookExecutor(config: cfg)
+        for await seg in stream {
+            if cfg.wake.enabled {
+                guard Self.matchesWake(text: seg.text, cfg: cfg) else { continue }
+            }
+            let stripped = Self.stripWake(text: seg.text, cfg: cfg)
+            if stripped.count >= cfg.hook.minCharacters {
+                let job = HookJob(text: stripped, timestamp: Date())
+                try await executor.run(job: job)
+            }
+            if cfg.transcripts.enabled {
+                await TranscriptsStore.shared.append(text: stripped)
+            }
+            if seg.isFinal {
+                logger.info("final: \(stripped)")
+            } else {
+                logger.debug("partial: \(stripped)")
+            }
         }
     }
 

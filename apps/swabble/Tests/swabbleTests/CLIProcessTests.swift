@@ -1,9 +1,10 @@
 import Foundation
+import Swabble
 import XCTest
 
 @available(macOS 26.0, *)
 final class CLIProcessTests: XCTestCase {
-    func testExecutablePathPreservesHealthAndCommandErrors() throws {
+    func testExecutablePathPreservesManualHookAndCommandErrors() throws {
         let executable = Bundle(for: Self.self).bundleURL.deletingLastPathComponent()
             .appendingPathComponent("swabble")
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executable.path))
@@ -11,8 +12,17 @@ final class CLIProcessTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
+        let hookOutput = directory.appendingPathComponent("hook-output.txt")
+        let hookConfig = directory.appendingPathComponent("hook-config.json")
+        var config = SwabbleConfig()
+        config.hook.command = "/bin/sh"
+        config.hook.args = ["-c", #"printf '%s\n' "$SWABBLE_TEXT" >> "$SWABBLE_TEST_OUTPUT""#]
+        config.hook.env = ["SWABBLE_TEST_OUTPUT": hookOutput.path]
+        try ConfigLoader.save(config, at: hookConfig)
+
         let cases: [([String], Int32, String, String)] = [
             (["health"], 0, "ok\n", ""),
+            (["test-hook", "hello world", "--config", hookConfig.path], 0, "hook invoked\n", ""),
             (["unknown-command"], 1, "", "error: Unknown subcommand 'unknown-command' for command 'swabble'\n"),
             (["mic"], 1, "", "error: Command 'mic' requires a subcommand\n"),
         ]
@@ -43,5 +53,6 @@ final class CLIProcessTests: XCTestCase {
                 String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
                 expectedError)
         }
+        XCTAssertEqual(try String(contentsOf: hookOutput, encoding: .utf8), "hello world\n")
     }
 }
