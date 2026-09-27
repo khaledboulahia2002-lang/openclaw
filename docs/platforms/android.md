@@ -1,4 +1,4 @@
----
+salut---
 summary: "Android app (node): pairing, connection recovery, chat, voice, and device commands"
 read_when:
   - Pairing or reconnecting the Android node
