@@ -44,7 +44,7 @@ it.each(
         tag: "preview",
         requests: manager === "npm" ? ["latest", "latest"] : ["preview", "2026.9.4"],
       },
-    ].map((entry) => ({ ...entry, manager })),
+    ].map((entry) => Object.assign({}, entry, { manager })),
   ),
 )("resolves $manager $name with paired metadata and bounded requests", async (entry) => {
   vi.mocked(shared.resolveTargetVersion).mockRestore();
@@ -101,9 +101,10 @@ it.each(
         termination: "exit",
       };
     });
-  const fetch = vi.fn<typeof globalThis.fetch>(
-    async (input) => new Response(JSON.stringify(respond(String(input).split("/").at(-1)!))),
-  );
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    return Response.json(respond(url.pathname.split("/").at(-1)!));
+  });
   vi.stubGlobal("fetch", fetch);
   try {
     const opts = { tag: entry.tag, channel: entry.channel, dryRun: true, json: true };
@@ -113,7 +114,7 @@ it.each(
     }
     const pending = resolveUpdateCommandTarget(
       opts,
-      { triageTarget: { root: fixture.root } },
+      { triageTarget: { root: fixture.root, env } },
       process.cwd(),
       {
         ...prepared,
