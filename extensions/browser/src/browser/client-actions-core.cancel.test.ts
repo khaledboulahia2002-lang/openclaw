@@ -28,8 +28,8 @@ import {
   browserArmFileChooser,
   browserNavigate,
   browserScreenshotAction,
-} from "./client-actions-core.js";
-import { browserConsoleMessages, browserPdfSave } from "./client-actions-observe.js";
+} from "./client-actions.js";
+import { browserConsoleMessages, browserPdfSave } from "./client-actions.js";
 import {
   browserCloseTab,
   browserDoctor,
