@@ -337,7 +337,7 @@ export function buildDiscordComponentMessage(params: {
     if (
       lastChild instanceof Row &&
       lastChild.components.length < 5 &&
-      !lastChild.components.some((entry) => entry instanceof AnySelectMenu)
+      !lastChild.components.some((child) => child instanceof AnySelectMenu)
     ) {
       lastChild.addComponent(component);
     } else {

@@ -124,9 +124,15 @@ async function dispatchDiscordMessageAction(
     ...(ctx.progressSnapshot ? { progressSnapshot: ctx.progressSnapshot } : {}),
     ...readPolicyOptions,
   } as const;
-  const runAction = ({ action, ...payload }: { action: string; [key: string]: unknown }) =>
+  const runAction = ({
+    action: runtimeAction,
+    ...payload
+  }: {
+    action: string;
+    [key: string]: unknown;
+  }) =>
     handleDiscordAction(
-      { action, accountId: accountId ?? undefined, ...payload },
+      { action: runtimeAction, accountId: accountId ?? undefined, ...payload },
       cfg,
       actionOptions,
     );

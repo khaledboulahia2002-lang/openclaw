@@ -359,8 +359,8 @@ export function createSlackReplyDeliveryPlan(params: {
     hasReplied: params.hasRepliedRef.value,
   });
   return {
-    peekThreadTs: replyReference.peek,
-    nextThreadTs: replyReference.use,
+    peekThreadTs: () => replyReference.peek(),
+    nextThreadTs: () => replyReference.use(),
     markSent: () => {
       replyReference.markSent();
       params.hasRepliedRef.value = replyReference.hasReplied();

@@ -480,7 +480,7 @@ function findFirstChromeExecutable(
   candidates: string[],
   platform: NodeJS.Platform,
 ): BrowserExecutable | null {
-  const candidate = candidates.find((candidate) => isExecutable(candidate, platform));
+  const candidate = candidates.find((filePath) => isExecutable(filePath, platform));
   if (!candidate) {
     return null;
   }
